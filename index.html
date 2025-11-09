@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sistem Gudang Data - A–Z dengan QR (Revisi)</title>
+  <style>
+    :root{--bg:#f3f8ff;--card:#ffffff;--accent:#4b6eff;--muted:#64748b;--glass: rgba(255,255,255,0.65)}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Arial;margin:0;background:linear-gradient(180deg,#eef6ff, #f9fbff);color:#071135}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:20px}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:18px}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(20,30,80,0.06)}
+    .names-panel{position:relative}
+    .addBtn{position:absolute;right:12px;top:12px;background:var(--accent);color:#fff;border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+    .small{font-size:13px;color:var(--muted)}
+    .names-list{max-height:520px;overflow:auto;padding-top:36px}
+    .group{margin-bottom:8px}
+    .letter{font-weight:700;padding:6px 8px;background:#eef5ff;border-radius:8px;display:inline-block}
+    .item{padding:8px 10px;border-radius:8px;margin-top:6px;cursor:pointer}
+    .item:hover{background:#f0f6ff}
+    input,select,textarea,button{border:1px solid #e6eef8;padding:8px;border-radius:8px;font-size:14px}
+    label{font-size:13px;color:var(--muted)}
+    .controls{display:flex;gap:8px;align-items:center}
+
+    /* Modal base */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(4,8,20,0.4);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter: blur(4px);}
+    .modal-backdrop.open{display:flex}
+    .modal-card{width:100%;max-width:560px;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.6));box-shadow:0 10px 30px rgba(5,10,30,0.18);border:1px solid rgba(255,255,255,0.6)}
+
+    /* small register modal */
+    .modal-small{max-width:420px}
+    .form-row{display:flex;gap:8px;margin-bottom:8px}
+
+    /* qr modal */
+    .qr-centered{display:flex;flex-direction:column;align-items:center;gap:12px}
+
+    /* full detail modal */
+    .profile-grid{display:grid;grid-template-columns:1fr;gap:8px}
+
+    footer{margin-top:18px;font-size:13px;color:var(--muted)}
+    @media(max-width:900px){.grid{grid-template-columns:1fr} .profile-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Sistem Gudang Data — A–Z dengan QR</h1>
+      <div class="small">Scan QR untuk melihat data lengkap. Data disimpan di <strong>localStorage</strong>.</div>
+    </header>
+
+    <div class="grid">
+      <div class="card names-panel">
+        <button id="openRegisterBtn" class="addBtn">+ Tambah Data</button>
+        <h3>Daftar Nama</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin:12px 0">
+          <input id="filter" class="search" placeholder="Cari nama..." />
+          <button id="exportJson" class="btn ghost">Export JSON</button>
+          <button id="importJsonBtn" class="btn ghost">Import</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+        <div class="names-list" id="namesList"></div>
+      </div>
+
+      <div class="card">
+        <h3>Pratinjau / Scanner</h3>
+        <div style="margin-bottom:10px">Klik nama di kiri untuk membuka modal QR (hanya menampilkan nama + QR). Scan QR untuk melihat data lengkap.</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+          <button id="openScanner" class="btn ghost">Pindai (upload gambar QR)</button>
+          <input id="scanFile" type="file" accept="image/*" style="display:none" />
+          <div class="small">Atau buka halaman dengan hash <code>#id=UID</code> setelah scan.</div>
+        </div>
+        <div id="scanResult" class="small"></div>
+
+        <hr />
+        <h4>Petunjuk singkat</h4>
+        <ul>
+          <li>Data disimpan di <strong>localStorage</strong> browser Anda.</li>
+          <li>QR mengenkode URL ke halaman ini dengan hash <code>#id=UID</code>.</li>
+          <li>Hanya setelah discan (atau membuka URL dengan hash) data lengkap akan muncul.</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>Built simple — simpan/migrasi data dengan fitur import/export.</footer>
+  </div>
+
+  <!-- Modal: Register (small) -->
+  <div id="modalRegister" class="modal-backdrop"><div class="modal-card modal-small">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong>Tambah Data</strong>
+      <button id="closeRegister" class="btn ghost">Tutup</button>
+    </div>
+    <form id="registerForm">
+      <div class="form-row"><div style="flex:1"><label>Nama lengkap</label><input required id="name" /></div></div>
+      <div class="form-row"><div style="flex:1"><label>Nomor HP</label><input id="phone" /></div></div>
+      <div class="form-row"><div style="flex:1"><label>No. Identitas</label><input id="nid" /></div></div>
+      <div class="form-row"><div style="flex:1"><label>Email</label><input id="email" type="email" /></div></div>
+      <div class="form-row"><div style="flex:1"><label>Alamat</label><textarea id="address" rows="2"></textarea></div></div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:6px">
+        <button class="btn" type="submit">Simpan</button>
+        <button type="button" id="resetForm" class="btn ghost">Reset</button>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Modal: QR (minimal) -->
+  <div id="modalQR" class="modal-backdrop"><div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong id="qrTitle">Nama</strong>
+      <button id="closeQR" class="btn ghost">Tutup</button>
+    </div>
+    <div class="qr-centered">
+      <div id="qrcodeSmall"></div>
+      <div style="display:flex;gap:8px">
+        <button id="downloadQRSmall" class="btn">Unduh QR</button>
+        <button id="openUrlSmall" class="btn ghost">Buka URL</button>
+      </div>
+      <div class="small">Scan QR untuk melihat data lengkap.</div>
+    </div>
+  </div></div>
+
+  <!-- Modal: Full Detail (shown when URL has #id= or after scanning) -->
+  <div id="modalFull" class="modal-backdrop"><div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <strong>Data Lengkap</strong>
+      <button id="closeFull" class="btn ghost">Tutup</button>
+    </div>
+    <div class="profile-grid">
+      <div><span class="small">Nama</span><div id="f_name" style="font-weight:700"></div></div>
+      <div><span class="small">No HP</span><div id="f_phone"></div></div>
+      <div><span class="small">No. ID</span><div id="f_nid"></div></div>
+      <div><span class="small">Email</span><div id="f_email"></div></div>
+      <div><span class="small">Alamat</span><div id="f_address"></div></div>
+      <div><span class="small">Waktu Disimpan</span><div id="f_created"></div></div>
+    </div>
+  </div></div>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <script>
+    // --- Storage & util ---
+    const storageKey = 'gudangData_v1';
+    function loadData(){ try{ return JSON.parse(localStorage.getItem(storageKey) || '[]'); }catch(e){return []} }
+    function saveData(arr){ localStorage.setItem(storageKey, JSON.stringify(arr)); }
+    function uid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+    // --- Elements ---
+    const dataEl = {
+      registerForm: document.getElementById('registerForm'),
+      openRegisterBtn: document.getElementById('openRegisterBtn'),
+      modalRegister: document.getElementById('modalRegister'),
+      closeRegister: document.getElementById('closeRegister'),
+      resetForm: document.getElementById('resetForm'),
+      namesList: document.getElementById('namesList'),
+      filter: document.getElementById('filter'),
+      exportJson: document.getElementById('exportJson'),
+      importJsonBtn: document.getElementById('importJsonBtn'),
+      importFile: document.getElementById('importFile'),
+      openScanner: document.getElementById('openScanner'),
+      scanFile: document.getElementById('scanFile'),
+      scanResult: document.getElementById('scanResult'),
+      modalQR: document.getElementById('modalQR'),
+      qrTitle: document.getElementById('qrTitle'),
+      qrcodeSmall: document.getElementById('qrcodeSmall'),
+      downloadQRSmall: document.getElementById('downloadQRSmall'),
+      openUrlSmall: document.getElementById('openUrlSmall'),
+      closeQR: document.getElementById('closeQR'),
+      modalFull: document.getElementById('modalFull'),
+      closeFull: document.getElementById('closeFull')
+    };
+
+    let data = loadData();
+    let lastSmallQR = null; // store current small QR data
+
+    // --- Register modal handlers ---
+    dataEl.openRegisterBtn.addEventListener('click', ()=>{ dataEl.modalRegister.classList.add('open'); document.getElementById('name').focus(); });
+    dataEl.closeRegister.addEventListener('click', ()=>{ dataEl.modalRegister.classList.remove('open'); });
+    dataEl.resetForm.addEventListener('click', ()=>dataEl.registerForm.reset());
+
+    dataEl.registerForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const obj = {
+        id: uid(),
+        name: document.getElementById('name').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        nid: document.getElementById('nid').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        address: document.getElementById('address').value.trim(),
+        created: new Date().toISOString()
+      };
+      if(!obj.name){ alert('Nama harus diisi'); return }
+      data.push(obj);
+      saveData(data);
+      renderList();
+      dataEl.registerForm.reset();
+      dataEl.modalRegister.classList.remove('open');
+      alert('Data tersimpan');
+    });
+
+    // --- Import / Export ---
+    dataEl.exportJson.addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='gudang-data.json'; a.click(); URL.revokeObjectURL(url);
+    });
+    dataEl.importJsonBtn.addEventListener('click', ()=>dataEl.importFile.click());
+    dataEl.importFile.addEventListener('change', (e)=>{ const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = ()=>{
+        try{ const arr = JSON.parse(reader.result); if(Array.isArray(arr)){ data = arr; saveData(data); renderList(); alert('Import selesai'); }else alert('Format salah'); }catch(err){ alert('File JSON invalid') }
+      }; reader.readAsText(f);
+    });
+
+    // --- Render list grouped A-Z ---
+    function renderList(){
+      const q = dataEl.filter.value.trim().toLowerCase();
+      const grouped = {};
+      data.forEach(item=>{
+        const first = (item.name||'?').charAt(0).toUpperCase();
+        if(q && !item.name.toLowerCase().includes(q)) return;
+        if(!grouped[first]) grouped[first]=[];
+        grouped[first].push(item);
+      });
+      const letters = Object.keys(grouped).sort();
+      dataEl.namesList.innerHTML='';
+      if(letters.length===0){ dataEl.namesList.innerHTML = '<div class="small">Tidak ada data.</div>'; return }
+      letters.forEach(letter=>{
+        const g = document.createElement('div'); g.className='group';
+        const head = document.createElement('div'); head.className='letter'; head.textContent = letter;
+        g.appendChild(head);
+        grouped[letter].sort((a,b)=>a.name.localeCompare(b.name)).forEach(it=>{
+          const div = document.createElement('div'); div.className='item'; div.textContent = it.name + (it.phone?(' — '+it.phone):'');
+          div.addEventListener('click', ()=>openSmallQR(it.id));
+          g.appendChild(div);
+        });
+        dataEl.namesList.appendChild(g);
+      });
+    }
+    dataEl.filter.addEventListener('input', renderList);
+
+    // --- Small QR modal (only name + QR) ---
+    let smallQRCodeObj = null;
+    function openSmallQR(id){
+      const it = data.find(x=>x.id===id); if(!it) return alert('Data tidak ditemukan');
+      dataEl.qrTitle.textContent = it.name;
+      const url = location.href.split('#')[0] + '#id=' + encodeURIComponent(it.id);
+      dataEl.qrcodeSmall.innerHTML='';
+      smallQRCodeObj = new QRCode(dataEl.qrcodeSmall, {text:url,width:200,height:200,correctLevel:QRCode.CorrectLevel.H});
+      lastSmallQR = {url, name: it.name};
+      dataEl.modalQR.classList.add('open');
+    }
+    dataEl.closeQR.addEventListener('click', ()=>{
+      dataEl.modalQR.classList.remove('open');
+      dataEl.qrcodeSmall.innerHTML=''; smallQRCodeObj=null; lastSmallQR=null;
+    });
+    dataEl.downloadQRSmall.addEventListener('click', ()=>{
+      if(!lastSmallQR) return alert('QR tidak tersedia');
+      const img = dataEl.qrcodeSmall.querySelector('img');
+      if(img){ downloadURI(img.src, lastSmallQR.name.replace(/\s+/g,'_')+'_qr.png'); return }
+      const canvas = dataEl.qrcodeSmall.querySelector('canvas');
+      if(canvas){ downloadURI(canvas.toDataURL('image/png'), lastSmallQR.name.replace(/\s+/g,'_')+'_qr.png'); return }
+      alert('QR tidak tersedia');
+    });
+    dataEl.openUrlSmall.addEventListener('click', ()=>{ if(!lastSmallQR) return; window.open(lastSmallQR.url,'_blank'); });
+
+    // --- Full detail modal (shown after scanning or opening #id=) ---
+    function openFullDetail(it){
+      if(!it) return;
+      document.getElementById('f_name').textContent = it.name||'-';
+      document.getElementById('f_phone').textContent = it.phone||'-';
+      document.getElementById('f_nid').textContent = it.nid||'-';
+      document.getElementById('f_email').textContent = it.email||'-';
+      document.getElementById('f_address').textContent = it.address||'-';
+      document.getElementById('f_created').textContent = it.created?new Date(it.created).toLocaleString():'-';
+      dataEl.modalFull.classList.add('open');
+    }
+    dataEl.closeFull.addEventListener('click', ()=>dataEl.modalFull.classList.remove('open'));
+
+    // --- QR scan from image file (jsQR) ---
+    dataEl.openScanner.addEventListener('click', ()=>dataEl.scanFile.click());
+    dataEl.scanFile.addEventListener('change', (e)=>{
+      const f = e.target.files[0]; if(!f) return;
+      const img = new Image(); const url = URL.createObjectURL(f);
+      img.onload = ()=>{
+        const canvas = document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img,0,0);
+        try{
+          const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+          const code = jsQR(imgData.data, canvas.width, canvas.height);
+          if(!code) return alert('QR tidak terdeteksi di gambar');
+          URL.revokeObjectURL(url);
+          handleScannedUrl(code.data);
+        }catch(err){ alert('Gagal membaca gambar'); }
+      };
+      img.src = url;
+    });
+
+    function handleScannedUrl(str){
+      const idx = str.indexOf('#id=');
+      let id = null;
+      if(idx!==-1) id = decodeURIComponent(str.slice(idx+4));
+      if(!id){
+        const m = str.match(/id=([A-Za-z0-9_-]+)/);
+        if(m) id = m[1];
+      }
+      if(!id && /^u[0-9a-z]{8,}$/i.test(str)) id = str;
+      if(!id){ alert('Format QR tidak dikenali: '+str); return; }
+      const it = data.find(x=>x.id===id);
+      if(it){ openFullDetail(it); }
+      else{
+        if(confirm('Data untuk ID ini tidak ditemukan di perangkat ini. Ingin menambahkan data baru?')){
+          dataEl.modalRegister.classList.add('open');
+        }
+      }
+    }
+
+    // --- Hash check on load ---
+    function checkHash(){
+      const h = location.hash||'';
+      if(h.startsWith('#id=')){
+        const id = decodeURIComponent(h.slice(4));
+        const it = data.find(x=>x.id===id);
+        if(it) openFullDetail(it);
+        else alert('Data untuk ID di URL tidak ditemukan pada perangkat ini.');
+      }
+    }
+
+    // --- Download helper ---
+    function downloadURI(uri, name){ const a=document.createElement('a'); a.href=uri; a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+
+    // --- Initial ---
+    renderList(); checkHash();
+
+    // close modals on backdrop click
+    document.querySelectorAll('.modal-backdrop').forEach(md=>{
+      md.addEventListener('click', (e)=>{
+        if(e.target===md){
+          md.classList.remove('open');
+          if(md===dataEl.modalQR){ dataEl.qrcodeSmall.innerHTML=''; smallQRCodeObj=null; lastSmallQR=null; }
+        }
+      });
+    });
+async function loadData(){
+    const r = await fetch('api/get_all.php');
+    return await r.json();
+  }
+  async function saveDataToServer(o){
+    const r = await fetch('api/add.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});
+    return await r.json();
+  }
+  async function getDataById(u){
+    const r = await fetch('api/get_one.php?id='+encodeURIComponent(u));
+    return await r.json();
+  }
+  </script>
+</body>
+</html>
